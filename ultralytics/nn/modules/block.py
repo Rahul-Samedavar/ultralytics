@@ -1061,6 +1061,8 @@ class C3f(nn.Module):
         return self.cv3(torch.cat(y, 1))
 
 
+
+
 class C3k2(C2f):
     """Faster Implementation of CSP Bottleneck with 2 convolutions."""
 
@@ -1082,6 +1084,161 @@ class C3k2(C2f):
         self.m = nn.ModuleList(
             C3k(self.c, self.c, 2, shortcut, g) if c3k else Bottleneck(self.c, self.c, shortcut, g) for _ in range(n)
         )
+
+
+
+
+import torch
+import torch.nn as nn
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+class DeformConv2d(nn.Module):
+    def __init__(self, channels, kernel_size=3, dilation=1):
+        super().__init__()
+        self.channels = channels
+        self.kernel_size = kernel_size
+        self.dilation = dilation
+
+        # depthwise weights
+        self.weight = nn.Parameter(
+            torch.randn(channels, 1, kernel_size, kernel_size)
+        )
+
+        # offset predictor
+        self.offset_conv = nn.Conv2d(
+            channels,
+            2 * kernel_size * kernel_size,
+            kernel_size=3,
+            padding=1
+        )
+
+        nn.init.zeros_(self.offset_conv.weight)
+        nn.init.zeros_(self.offset_conv.bias)
+
+    def forward(self, x):
+        B, C, H, W = x.shape
+        k = self.kernel_size
+        d = self.dilation
+
+        offsets = self.offset_conv(x)
+        offsets = offsets.view(B, k * k, 2, H, W)
+
+        # base grid
+        yy, xx = torch.meshgrid(
+            torch.arange(H, device=x.device),
+            torch.arange(W, device=x.device),
+            indexing="ij"
+        )
+
+        yy = yy.float()
+        xx = xx.float()
+
+        out = 0
+        idx = 0
+
+        for i in range(k):
+            for j in range(k):
+                dy = (i - k // 2) * d
+                dx = (j - k // 2) * d
+
+                oy = offsets[:, idx, 0]
+                ox = offsets[:, idx, 1]
+
+                y = yy + dy + oy
+                x_ = xx + dx + ox
+
+                # normalize grid to [-1, 1]
+                grid_y = 2 * y / (H - 1) - 1
+                grid_x = 2 * x_ / (W - 1) - 1
+
+                grid = torch.stack((grid_x, grid_y), dim=-1)
+
+                sampled = F.grid_sample(
+                    x,
+                    grid,
+                    mode="bilinear",
+                    padding_mode="zeros",
+                    align_corners=True
+                )
+
+                w = self.weight[:, 0, i, j].view(1, C, 1, 1)
+                out = out + sampled * w
+
+                idx += 1
+
+        return out
+
+
+class DLKA(nn.Module):
+    "Deformable Large Kernal Attention"
+    def __init__(self, dim, kernel_size=7, dilation=2):
+        super().__init__()
+
+        self.deform_dw = DeformConv2d(
+            dim,
+            kernel_size=kernel_size,
+            dilation=dilation
+        )
+
+        self.proj = nn.Conv2d(dim, dim, 1)
+
+    def forward(self, x):
+        attn = self.deform_dw(x)
+        attn = self.proj(attn)
+        return x * attn
+
+
+class C3k2DLKA(nn.Module):
+    """C3k2 with DLKA before last convolution"""
+
+    def __init__(
+        self, c1: int, c2: int, n: int = 1, c3k: bool = False, e: float = 0.5, g: int = 1, shortcut: bool = True
+    ):
+        """Initialize C3k2DLKA module.
+
+        Args:
+            c1 (int): Input channels.
+            c2 (int): Output channels.
+            n (int): Number of blocks.
+            c3k (bool): Whether to use C3k blocks.
+            e (float): Expansion ratio.
+            g (int): Groups for convolutions.
+            shortcut (bool): Whether to use shortcut connections.
+        """
+        super().__init__()
+        self.c = int(c2 * e)  # hidden channels
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        
+        self.m = nn.ModuleList(
+            C3k(self.c, self.c, 2, shortcut, g) if c3k else Bottleneck(self.c, self.c, shortcut, g) for _ in range(n)
+        )
+
+        self.dlka = DLKA((2 + n) * self.c)
+
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)  # optional act=FReLU(c2)
+
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass through C2f layer."""
+        y = list(self.cv1(x).chunk(2, 1))
+        y.extend(m(y[-1]) for m in self.m)
+        attn = self.dlka(torch.cat(y, 1))
+        return self.cv2(attn)
+
+
+
+    def forward_split(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass using split() instead of chunk()."""
+        y = self.cv1(x).split((self.c, self.c), 1)
+        y = [y[0], y[1]]
+        y.extend(m(y[-1]) for m in self.m)
+        attn = self.dlka(torch.cat(y, 1))
+        return self.cv2(attn)
+
+
 
 
 class C3k(C3):

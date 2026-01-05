@@ -12,6 +12,7 @@ import torch.nn as nn
 
 from ultralytics.nn.autobackend import check_class_names
 from ultralytics.nn.modules import (
+    StAtn, Identity, TextureAnomalyMap, C3k2DLKA, PGF,
     AIFI,
     C1,
     C2,
@@ -1519,6 +1520,10 @@ def parse_model(d, ch, verbose=True):
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
     base_modules = frozenset(
         {
+            PGF, 
+            StAtn,
+            TextureAnomalyMap,
+            Identity,
             Classify,
             Conv,
             ConvTranspose,
@@ -1535,7 +1540,7 @@ def parse_model(d, ch, verbose=True):
             C1,
             C2,
             C2f,
-            C3k2,
+            C3k2, C3k2DLKA,
             RepNCSPELAN4,
             ELAN1,
             ADown,
@@ -1561,7 +1566,7 @@ def parse_model(d, ch, verbose=True):
             C1,
             C2,
             C2f,
-            C3k2,
+            C3k2, C3k2DLKA,
             C2fAttn,
             C3,
             C3TR,
@@ -1574,7 +1579,11 @@ def parse_model(d, ch, verbose=True):
             A2C2f,
         }
     )
+    if d.get("use_stat_atn", False):
+        pass
+
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
+
         m = (
             getattr(torch.nn, m[3:])
             if "nn." in m
@@ -1587,19 +1596,37 @@ def parse_model(d, ch, verbose=True):
                 with contextlib.suppress(ValueError):
                     args[j] = locals()[a] if a in locals() else ast.literal_eval(a)
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
+        
         if m in base_modules:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
+            
+            if m is StAtn or m is PGF:
+                c2 = c1 = ch[f[0]]
+
+            elif m is Identity:
+                c2 = c1 = ch[f]
+            elif m is TextureAnomalyMap:
+                c1 = ch[f]
+                c2 = 1
+            else:
+                c1, c2 = ch[f], args[0]
+
+                if c2 != nc :  # if c2 not equal to number of classes (i.e. for Classify() output)
+                    c2 = make_divisible(min(c2, max_channels) * width, 8)
+
             if m is C2fAttn:  # set 1) embed channels and 2) num heads
                 args[1] = make_divisible(min(args[1], max_channels // 2) * width, 8)
                 args[2] = int(max(round(min(args[2], max_channels // 2 // 32)) * width, 1) if args[2] > 1 else args[2])
 
-            args = [c1, c2, *args[1:]]
+            if not m in [StAtn, TextureAnomalyMap, Identity, PGF]:
+                args = [c1, c2, *args[1:]]
+
+            if m is PGF:
+                args = [c1]
+
             if m in repeat_modules:
                 args.insert(2, n)  # number of repeats
                 n = 1
-            if m is C3k2:  # for M/L/X sizes
+            if m is C3k2 or m is C3k2DLKA:  # for M/L/X sizes
                 legacy = False
                 if scale in "mlx":
                     args[3] = True

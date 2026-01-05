@@ -1,4 +1,6 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
+print("imported forked ultralytics")
+
 
 __version__ = "8.3.241"
 

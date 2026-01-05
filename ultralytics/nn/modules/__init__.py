@@ -17,7 +17,18 @@ Examples:
     >>> subprocess.run(f"onnxslim {f} {f} && open {f}", shell=True, check=True)  # pip install onnxslim
 """
 
+from .attention import (
+    StAtn,
+    TextureAnomalyMap,
+)
+
+from .fusion import PGF
+
+from .utils import Identity
+
+
 from .block import (
+    C3k2DLKA,
     C1,
     C2,
     C2PSA,
@@ -103,6 +114,10 @@ from .transformer import (
 )
 
 __all__ = (
+    "C3k2DLKA",
+    "StAtn", "PGF",
+    "Identiy",
+    "TextureAnomalyMap",
     "AIFI",
     "C1",
     "C2",
