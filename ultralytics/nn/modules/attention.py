@@ -109,3 +109,75 @@ class TextureAnomalyMap(nn.Module):
         anomaly = anomaly / max_val
         anomaly = anomaly.clamp(0, 3) / 3.0
         return anomaly
+
+import math
+from torchvision.transforms.functional import rgb_to_grayscale
+
+class ScribbleMap(nn.Module):
+    def __init__(self, num_orient=8, sharpness=10.0):
+        super().__init__()
+        self.num_orient = num_orient
+        self.sharpness = sharpness
+
+        angles = torch.linspace(0, math.pi, num_orient + 1)[:-1]
+        kernels = []
+
+        for a in angles:
+            dx, dy = torch.cos(a), torch.sin(a)
+            k = torch.zeros(1, 1, 3, 3)
+
+            k[0,0,0,0] = -dx
+            k[0,0,0,2] =  dx
+            k[0,0,2,0] = -dx
+            k[0,0,2,2] =  dx
+            k[0,0,0,1] = -dy
+            k[0,0,2,1] =  dy
+            # center = 0 → zero-sum filter
+
+            kernels.append(k)
+
+        self.register_buffer(
+            "orient_kernels",
+            torch.cat(kernels, dim=0)  # (8,1,3,3)
+        )
+
+        # --- Laplacian kernel ---
+        self.register_buffer(
+            "lap_k",
+            torch.tensor([[[[0,-1,0],
+                            [-1,4,-1],
+                            [0,-1,0]]]], dtype=torch.float32)
+        )
+
+    def forward(self, img):
+        """
+        img: B × 3 × H × W
+        """
+
+
+        if img.shape[1] > 1:
+            img = rgb_to_grayscale(img, num_output_channels=1)
+
+
+
+        # Orientation responses
+        grad = F.conv2d(img, self.orient_kernels, padding=1)  # B×8×H×W
+        orient_stack = grad.abs()
+
+        # Mean + variance across orientations
+        orient_mean = orient_stack.mean(dim=1, keepdim=True)
+        orient_var  = orient_stack.var(dim=1, keepdim=True)
+
+        # Connectivity (Laplacian)
+        lap = F.conv2d(img, self.lap_k, padding=1).abs()
+        connectivity = F.max_pool2d(lap, kernel_size=5, stride=1, padding=2)
+
+        # Soft gating instead of hard threshold
+        orient_gate = torch.sigmoid((orient_mean - 0.3) * self.sharpness)
+
+        score = orient_var * connectivity * orient_gate
+
+        # Normalize to [0,1] (stable)
+        score = score / (score.amax(dim=[2,3], keepdim=True) + 1e-6)
+
+        return score

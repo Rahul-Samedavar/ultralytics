@@ -20,6 +20,7 @@ Examples:
 from .attention import (
     StAtn,
     TextureAnomalyMap,
+    ScribbleMap,
 )
 
 from .fusion import PGF
@@ -118,6 +119,7 @@ __all__ = (
     "StAtn", "PGF",
     "Identiy",
     "TextureAnomalyMap",
+    "ScribbleMap",
     "AIFI",
     "C1",
     "C2",

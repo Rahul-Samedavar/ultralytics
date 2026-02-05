@@ -12,7 +12,7 @@ import torch.nn as nn
 
 from ultralytics.nn.autobackend import check_class_names
 from ultralytics.nn.modules import (
-    StAtn, Identity, TextureAnomalyMap, C3k2DLKA, PGF,
+    StAtn, Identity, TextureAnomalyMap, C3k2DLKA, PGF, ScribbleMap,
     AIFI,
     C1,
     C2,
@@ -1523,6 +1523,7 @@ def parse_model(d, ch, verbose=True):
             PGF, 
             StAtn,
             TextureAnomalyMap,
+            ScribbleMap,
             Identity,
             Classify,
             Conv,
@@ -1604,7 +1605,7 @@ def parse_model(d, ch, verbose=True):
 
             elif m is Identity:
                 c2 = c1 = ch[f]
-            elif m is TextureAnomalyMap:
+            elif m in [TextureAnomalyMap, ScribbleMap] :
                 c1 = ch[f]
                 c2 = 1
             else:
@@ -1617,7 +1618,7 @@ def parse_model(d, ch, verbose=True):
                 args[1] = make_divisible(min(args[1], max_channels // 2) * width, 8)
                 args[2] = int(max(round(min(args[2], max_channels // 2 // 32)) * width, 1) if args[2] > 1 else args[2])
 
-            if not m in [StAtn, TextureAnomalyMap, Identity, PGF]:
+            if not m in [StAtn, TextureAnomalyMap, ScribbleMap, Identity, PGF]:
                 args = [c1, c2, *args[1:]]
 
             if m is PGF:
