@@ -25,8 +25,9 @@ A texture anomaly map highlights regions where local texture differs from its su
 
 For road surfaces, cracks may appear as narrow, irregular structures with different texture characteristics from the surrounding pavement. The proposed prior extractor uses handcrafted image processing to make these local variations more explicit.
 
-![Texture Anomaly Map pipeline](Texture-Anomaly-Map.png)
-
+<p align="center">
+  <img src="Texture-Anomaly-Map.png" alt="Texture Anomaly Map pipeline" height="600">
+</p>
 ### Pipeline
 
 - **Grayscale conversion:** Converts the input image into a single intensity channel.
