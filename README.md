@@ -4,7 +4,7 @@ I extended the Ultralytics codebase to experiment with **Prior-Guided Feature Fu
 
 - **Core idea:** Inject domain-informed texture priors into YOLO feature maps through learnable gated fusion.
 - **Architectures:** Custom YOLOv8 and YOLOv12 variants.
-- **documentation:** [Prior-Guided Feature Fusion for Crack Detection](docs/README.md)
+- **documentation:** [Prior-Guided Feature Fusion for Crack Detection](docs/prior-guided-fusion/README.md)
 
 
 <div align="center">
