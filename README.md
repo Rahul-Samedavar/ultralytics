@@ -1,3 +1,12 @@
+## Why this fork exists
+
+I extended the Ultralytics codebase to experiment with **Prior-Guided Feature Fusion (PGF)** for crack detection, using texture anomaly maps to guide feature learning.
+
+- **Core idea:** Inject domain-informed texture priors into YOLO feature maps through learnable gated fusion.
+- **Architectures:** Custom YOLOv8 and YOLOv12 variants.
+- **documentation:** [Prior-Guided Feature Fusion for Crack Detection](docs/README.md)
+
+
 <div align="center">
   <p>
     <a href="https://www.ultralytics.com/events/yolovision?utm_source=github&utm_medium=org&utm_campaign=yv25_event" target="_blank">
