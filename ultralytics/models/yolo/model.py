@@ -437,23 +437,7 @@ class YOLOA(YOLO):
         """Map head to model, trainer, validator, and predictor classes."""
         return {
             "classify": {
-                "model": ClassificationModel,+
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                "model": ClassificationModel,
                 "trainer": yolo.classify.ClassificationTrainer,
                 "validator": yolo.classify.ClassificationValidator,
                 "predictor": yolo.classify.ClassificationPredictor,
